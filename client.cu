@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     char buffer[5];
     recv(sock, buffer, 4, 0); // Receive "Done" message
 
-    fprintf(stderr, "ACK? %d%d%d%d\n", buffer[0], buffer[1], buffer[2], buffer[3]);
+    fprintf(stderr, "ACK? %c%c%c%c\n", buffer[0], buffer[1], buffer[2], buffer[3]);
 
     std::cout << "Result: ";
     for (int x : result)

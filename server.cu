@@ -31,7 +31,6 @@ __global__ void double_elements(int* d_input, int* d_output, int N) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     while (idx < N) {
         d_output[idx] = 2 * d_input[idx];
-        printf("OUT[%d] = %d\n", idx, d_output[idx]);
         idx += blockDim.x*gridDim.x;
     }
 }
@@ -43,11 +42,9 @@ void CUDART_CB completion_callback(cudaStream_t, cudaError_t, void* t)
 
     // Send result back to client
     send(task->client_socket, task->result.data(), task->result.size() * sizeof(int), 0);
-    fprintf(stderr, "Sent result data...\n");
 
     const char* msg = "Done";
     send(task->client_socket, msg, strlen(msg), 0);
-    fprintf(stderr, "Sent DONE...\n");
 }
 
 // Computation thread function
@@ -65,39 +62,27 @@ void computation_thread_func() {
             task_queue.pop();
         }
 
-        int N = task.data.size();
-        int* d_input;
-        int* d_output;
-        cudaMalloc(&d_input, N * sizeof(int));
-        cudaMalloc(&d_output, N * sizeof(int));
-        cudaMemcpy(d_input, task.data.data(), N * sizeof(int), cudaMemcpyHostToDevice);
-
         std::cout << "Processing data: ";
         for (int x : task.data)
             std::cout << x << " ";
         std::cout << "\n";
+
+        int N = task.data.size();
+        int* d_input;
+        int* d_output;
+        cudaMallocAsync(&d_input, N * sizeof(int), stream);
+        cudaMallocAsync(&d_output, N * sizeof(int), stream);
+        cudaMemcpyAsync(d_input, task.data.data(), N * sizeof(int), cudaMemcpyHostToDevice, stream);
 
         double_elements<<<64, 128, 0, stream>>>(d_input, d_output, N);
 
         cudaMemcpyAsync(task.result.data(), d_output, N * sizeof(int), cudaMemcpyDeviceToHost, stream);
         cudaStreamAddCallback(stream, completion_callback, &task, 0);
 
+        cudaFreeAsync(d_input, stream);
+        cudaFreeAsync(d_output, stream);
+
         cudaStreamSynchronize(stream);
-
-//        // Send result back to client
-//        send(task.client_socket, result.data(), N * sizeof(int), 0);
-//        fprintf(stderr, "Sent result data...\n");
-//
-//        std::cout << "Processed data: ";
-//        for (int x : result)
-//            std::cout << x << " ";
-//        std::cout << "\n";
-
-       // cudaGraphDestroy(graph);
-       // cudaGraphExecDestroy(graphExec);
-       // cudaStreamDestroy(stream);
-        cudaFree(d_input);
-        cudaFree(d_output);
     }
 }
 
